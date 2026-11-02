@@ -1,4 +1,4 @@
-"""Interfaz GTK4 + libadwaita de WakeLight."""
+"""GTK4 + libadwaita interface for WakeLight."""
 import sys
 import time
 from dataclasses import replace
@@ -26,7 +26,7 @@ def _paint(rgb) -> None:
 
 
 class LightWindow(Gtk.Window):
-    """Pantalla completa: negra mientras espera, luego muestra la luz. Esc la cierra."""
+    """Fullscreen window: stays black while waiting, then displays the light. Press Esc to close."""
 
     def __init__(self, app, main, p, target, arm=True):
         super().__init__(application=app)
@@ -68,7 +68,7 @@ class LightWindow(Gtk.Window):
     def _begin(self):
         self.prev = core.backlight_get()
         core.backlight_set(self.p.brightness)
-        self.cookie = self.app.inhibit(self, Gtk.ApplicationInhibitFlags.IDLE, "Luz de despertar")
+        self.cookie = self.app.inhibit(self, Gtk.ApplicationInhibitFlags.IDLE, "Wake-up light")
 
     def _tick(self):
         if self.done:
@@ -117,42 +117,75 @@ class MainWindow(Adw.ApplicationWindow):
         self.minute = _spin(0, 59, int(p.wake_time[3:]))
         for s in (self.hour, self.minute):
             s.connect("output", lambda w: (w.set_text(f"{int(w.get_value()):02d}"), True)[1])
-        self.mode = Adw.ComboRow(title="Modo", model=Gtk.StringList.new(["Color fijo", "Brillo progresivo", "Amanecer"]))
+
+        self.mode = Adw.ComboRow(
+            title="Mode",
+            model=Gtk.StringList.new(["Solid Color", "Gradual Brightness", "Sunrise"])
+        )
         self.mode.set_selected(core.MODES.index(p.mode))
+
         self.color = Gtk.ColorButton()
         rgba = Gdk.RGBA()
         rgba.parse(p.color)
         self.color.set_rgba(rgba)
+
         self.brightness = _spin(5, 100, p.brightness)
         self.ramp = _spin(0, 120, p.ramp_min)
         self.hold = _spin(1, 720, p.hold_min)
         self.suspend = Gtk.Switch(active=p.suspend_after)
 
-        wake = Adw.PreferencesGroup(title="Despertar")
-        wake.add(_row("Hora", self.hour, Gtk.Label(label=":"), self.minute))
-        light = Adw.PreferencesGroup(title="Luz")
+        wake = Adw.PreferencesGroup(title="Wake-up")
+        wake.add(_row("Time", self.hour, Gtk.Label(label=":"), self.minute))
+
+        light = Adw.PreferencesGroup(title="Light")
         self.color_row = _row("Color", self.color)
-        self.ramp_row = _row("Transición", self.ramp, subtitle="Minutos hasta llegar a la luz completa")
+        self.ramp_row = _row(
+            "Transition",
+            self.ramp,
+            subtitle="Minutes until full brightness is reached"
+        )
+
         light.add(self.mode)
         light.add(self.color_row)
-        light.add(_row("Brillo de pantalla", self.brightness, subtitle="Porcentaje del brillo del portátil"))
+        light.add(_row(
+            "Screen brightness",
+            self.brightness,
+            subtitle="Laptop screen brightness percentage"
+        ))
         light.add(self.ramp_row)
-        light.add(_row("Luz completa", self.hold, subtitle="Minutos con la luz fija"))
-        end = Adw.PreferencesGroup(title="Al terminar")
-        end.add(_row("Suspender el equipo", self.suspend))
+        light.add(_row(
+            "Full brightness duration",
+            self.hold,
+            subtitle="Minutes to keep the light at full brightness"
+        ))
+
+        end = Adw.PreferencesGroup(title="When finished")
+        end.add(_row("Suspend the computer", self.suspend))
+
         self.mode.connect("notify::selected", self._sync)
         self._sync()
 
         self.status = Gtk.Label(wrap=True, css_classes=["dim-label"])
-        go = Gtk.Button(label="Activar luz", css_classes=["suggested-action", "pill"])
+
+        go = Gtk.Button(label="Activate Light", css_classes=["suggested-action", "pill"])
         go.connect("clicked", self._activate)
-        test = Gtk.Button(label="Probar ahora", css_classes=["pill"])
+
+        test = Gtk.Button(label="Test Now", css_classes=["pill"])
         test.connect("clicked", self._test)
 
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
         for w in (wake, light, end, go, test, self.status):
             page.append(w)
-        clamp = Adw.Clamp(maximum_size=480, margin_start=16, margin_end=16, margin_top=12, margin_bottom=24, child=page)
+
+        clamp = Adw.Clamp(
+            maximum_size=480,
+            margin_start=16,
+            margin_end=16,
+            margin_top=12,
+            margin_bottom=24,
+            child=page
+        )
+
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         outer.append(Adw.HeaderBar())
         outer.append(Gtk.ScrolledWindow(vexpand=True, child=clamp))
@@ -180,9 +213,11 @@ class MainWindow(Adw.ApplicationWindow):
         core.save_profile(p)
         target = core.next_wake(p.wake_time)
         ok, msg = core.set_wake_alarm(target)
+
         if not ok:
             self.status.set_text(msg)
             return
+
         LightWindow(self.app, self, p, target).present()
         self.set_visible(False)
         GLib.timeout_add_seconds(2, self._suspend)
@@ -195,7 +230,13 @@ class MainWindow(Adw.ApplicationWindow):
     def _test(self, *_):
         p = self._collect()
         core.save_profile(p)
-        LightWindow(self.app, self, replace(p, suspend_after=False), time.time(), arm=False).present()
+        LightWindow(
+            self.app,
+            self,
+            replace(p, suspend_after=False),
+            time.time(),
+            arm=False
+        ).present()
         self.set_visible(False)
 
 
@@ -206,7 +247,10 @@ class App(Adw.Application):
     def do_activate(self):
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
         Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(), _provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+            Gdk.Display.get_default(),
+            _provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
         MainWindow(self).present()
 
 
