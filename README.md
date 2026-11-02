@@ -1,36 +1,42 @@
 # WakeLight
 
-Despertador **silencioso**: el portátil se suspende y, a la hora fijada, se enciende solo y muestra una luz
-(color fijo, brillo progresivo o amanecer simulado) el tiempo que quieras. Para Ubuntu (GNOME), GTK4 + libadwaita.
+A **silent alarm clock**: your laptop suspends and automatically wakes up at the scheduled time, displaying a light (solid color, gradual brightness increase, or simulated sunrise) for as long as you want. Designed for Ubuntu (GNOME), using GTK4 + libadwaita.
 
-## Instalar
-```
+## Installation
+
+```bash
 sudo bash install.sh
 ```
-Cierra sesión y vuelve a entrar (se añade tu usuario al grupo `wakelight`). Luego abre **WakeLight**.
-Antes de fiarte, usa **Probar ahora**, y prueba un despertar real con una hora a 3 minutos.
 
-## Modos
-- **Color fijo**: pantalla de un color durante X minutos.
-- **Brillo progresivo**: del negro al color elegido en X minutos, y luego fijo.
-- **Amanecer**: rojo oscuro → naranja → blanco cálido ("sol completo") y se mantiene.
+Log out and log back in (your user is added to the `wakelight` group). Then launch **WakeLight**.
 
-`Esc` cierra la pantalla de luz en cualquier momento.
+Before relying on it, use **Test Now** and perform a real wake-up test by scheduling it for 3 minutes later.
 
-## Seguridad
-- No ejecuta nada como root ni abre red. La instalación solo da al grupo `wakelight` permiso de escritura
-  sobre `/sys/class/rtc/rtcN/wakealarm` (programar el despertar).
-- Sin `shell=True`: los comandos externos (`brightnessctl`, `systemctl suspend`) se llaman con listas de argumentos.
-- La configuración (`~/.config/wakelight/config.json`, permisos 600) se valida al leerla: tipos, rangos,
-  formato de hora y de color. Un fichero corrupto o manipulado vuelve a los valores por defecto.
-- El despertar se limita a las próximas 36 h. La app vive en `/opt/wakelight`, sin escritura para el usuario.
+## Modes
 
-## Límites conocidos
-Depende de que el RTC del portátil pueda despertarlo (probado con `sudo rtcwake -m mem -s 120`).
-El brillo por hardware requiere `brightnessctl`; si no funciona, la luz se muestra igual por software.
-Pensado para GNOME/Wayland o X11; otros escritorios no están probados.
+- **Solid Color**: Displays a single color for a specified number of minutes.
+- **Gradual Brightness**: Gradually transitions from black to the selected color over a specified duration, then stays on.
+- **Sunrise**: Transitions from dark red → orange → warm white ("full sun") and stays on.
+
+Press `Esc` to close the light screen at any time.
+
+## Security
+
+- Does not run anything as root or access the network. Installation only grants the `wakelight` group write permission to `/sys/class/rtc/rtcN/wakealarm` (to schedule wake-ups).
+- No `shell=True`: external commands (`brightnessctl`, `systemctl suspend`) are executed using argument lists.
+- Configuration (`~/.config/wakelight/config.json`, permissions 600) is validated when loaded: types, ranges, time format, and color format. Corrupted or tampered files are reset to default values.
+- Wake-up scheduling is limited to the next 36 hours. The application runs from `/opt/wakelight`, which is not writable by regular users.
+
+## Known Limitations
+
+Wake-up functionality depends on the laptop's RTC being able to wake the system (tested with `sudo rtcwake -m mem -s 120`).
+
+Hardware brightness control requires `brightnessctl`. If it is unavailable or does not work, the light will still be displayed using software rendering.
+
+Designed for GNOME/Wayland or X11. Other desktop environments have not been tested.
 
 ## Tests
-```
+
+```bash
 pip install pytest && python3 -m pytest
 ```
