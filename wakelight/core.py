@@ -1,5 +1,6 @@
-"""Núcleo de WakeLight: configuración validada, cálculo de la luz y llamadas al sistema.
-No depende de GTK, así que se puede probar sin interfaz."""
+"""WakeLight core: validated configuration, light calculations, and system calls.
+Independent of GTK, so it can be tested without a graphical interface."""
+
 import json
 import os
 import re
@@ -15,9 +16,9 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 MODES = ("solid", "fade", "sunrise")
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
-MAX_AHEAD = 36 * 3600  # no se programan despertares a más de 36 h
+MAX_AHEAD = 36 * 3600  # Wake-ups cannot be scheduled more than 36 hours ahead.
 
-# Amanecer: (posición 0..1, color RGB). El último tramo es el "sol completo".
+# Sunrise: (position 0..1, RGB color). The final stage represents "full sun".
 SUNRISE = [
     (0.0, (12, 0, 0)),
     (0.25, (120, 25, 0)),
@@ -39,9 +40,9 @@ class Profile:
     wake_time: str = "11:00"
     mode: str = "solid"          # solid | fade | sunrise
     color: str = "#FFB46B"
-    brightness: int = 60         # % de brillo de la pantalla al encender
-    ramp_min: int = 20           # minutos de transición (fade / sunrise)
-    hold_min: int = 120          # minutos con la luz ya completa
+    brightness: int = 60         # Screen brightness percentage when the light turns on.
+    ramp_min: int = 20           # Transition duration in minutes (fade / sunrise).
+    hold_min: int = 120          # Duration in minutes at full brightness.
     suspend_after: bool = True
 
     def clean(self) -> "Profile":
@@ -77,7 +78,7 @@ def save_profile(p: Profile) -> None:
 
 
 def next_wake(hhmm: str, now: float | None = None) -> int:
-    """Próxima vez que será esa hora (hoy si falta más de 30 s, si no mañana)."""
+    """Return the next occurrence of the specified time (today if more than 30 seconds away, otherwise tomorrow)."""
     ref = datetime.fromtimestamp(now) if now is not None else datetime.now()
     h, m = map(int, hhmm.split(":"))
     t = ref.replace(hour=h, minute=m, second=0, microsecond=0)
@@ -107,7 +108,7 @@ def _sunrise(x: float):
 
 
 def light_at(p: Profile, t: float):
-    """Color RGB que debe mostrarse t segundos después de empezar la luz."""
+    """Return the RGB color to display t seconds after the light sequence begins."""
     ramp = ramp_seconds(p)
     x = 1.0 if ramp == 0 else max(0.0, min(1.0, t / ramp))
     if p.mode == "sunrise":
@@ -117,7 +118,8 @@ def light_at(p: Profile, t: float):
     return (round(r * f), round(g * f), round(b * f))
 
 
-# --- Sistema (sin shell, sin root) ---------------------------------------------------
+# --- System integration (no shell, no root) -----------------------------------------
+
 
 def _rtc_path():
     for p in sorted(Path("/sys/class/rtc").glob("rtc*/wakealarm")):
@@ -126,22 +128,22 @@ def _rtc_path():
 
 
 def set_wake_alarm(epoch: int):
-    """Programa el despertar escribiendo en el RTC. Devuelve (ok, mensaje)."""
+    """Schedule a wake-up by writing to the RTC. Returns (success, message)."""
     p = _rtc_path()
     if p is None:
-        return False, "No se encontró un reloj RTC en este equipo."
+        return False, "No RTC clock was found on this device."
     if not os.access(p, os.W_OK):
-        return False, "Sin permiso para el RTC. Ejecuta install.sh y reinicia la sesión."
+        return False, "No RTC permission. Run install.sh and restart your session."
     now = int(time.time())
     if not now < int(epoch) <= now + MAX_AHEAD:
-        return False, "Hora fuera de rango."
+        return False, "Time is outside the allowed range."
     try:
         with open(p, "w") as f:
             f.write("0\n")
         with open(p, "w") as f:
             f.write(f"{int(epoch)}\n")
     except OSError as e:
-        return False, f"No se pudo programar el despertar: {e}"
+        return False, f"Could not schedule the wake-up: {e}"
     return True, ""
 
 
